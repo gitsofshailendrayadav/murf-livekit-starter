@@ -156,7 +156,7 @@ export interface AgentSessionView_01Props {
 }
 
 export function AgentSessionView_01({
-  preConnectMessage = 'Agent is listening, ask it a question',
+  preConnectMessage = 'FinSaathi is ready. Start speaking...',
   supportsChatInput = true,
   supportsVideoInput = true,
   supportsScreenShare = true,
@@ -180,7 +180,24 @@ export function AgentSessionView_01({
   const [chatOpen, setChatOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { state: agentState } = useAgent();
-
+const statusText = (() => {
+  switch (agentState) {
+    case 'connecting':
+      return 'Connecting to FinSaathi...';
+    case 'initializing':
+  return 'Connecting to FinSaathi...';
+    case 'listening':
+      return 'FinSaathi is listening...';
+    case 'speaking':
+      return 'FinSaathi is speaking...';
+    case 'thinking':
+      return 'FinSaathi is thinking...';
+    case 'disconnected':
+      return 'Call ended';
+    default:
+      return 'FinSaathi is ready';
+  }
+})();
   const controls: AgentControlBarControls = {
     leave: true,
     microphone: true,
@@ -223,6 +240,11 @@ export function AgentSessionView_01({
           )}
         </AnimatePresence>
       </div>
+      <div className="absolute left-1/2 top-6 z-40 -translate-x-1/2">
+  <div className="rounded-full border border-white/10 bg-black/50 px-5 py-2 text-sm font-medium text-white backdrop-blur-md">
+    {statusText}
+  </div>
+</div>
       {/* Tile layout */}
       <TileLayout
         chatOpen={chatOpen}

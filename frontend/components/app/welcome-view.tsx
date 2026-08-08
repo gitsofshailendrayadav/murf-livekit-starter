@@ -33,9 +33,16 @@ export const WelcomeView = ({
       <section className="bg-background flex flex-col items-center justify-center text-center">
         <WelcomeImage />
 
-        <p className="text-foreground max-w-prose pt-1 leading-6 font-medium">
-          Chat live with your voice AI agent
-        </p>
+        <div className="max-w-lg pt-1">
+  <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+    Meet FinSaathi
+  </h1>
+
+  <p className="text-muted-foreground mt-2 text-sm leading-6">
+    Your AI financial assistant for simple, accessible and voice-first
+    financial guidance.
+  </p>
+</div>
 
         <Button
           size="lg"
