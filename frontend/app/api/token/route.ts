@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
-import { AccessToken, type AccessTokenOptions, type VideoGrant } from 'livekit-server-sdk';
-import { RoomConfiguration } from '@livekit/protocol';
+import {
+  AccessToken,
+  type AccessTokenOptions,
+  type VideoGrant,
+} from 'livekit-server-sdk';
+import {
+  RoomConfiguration,
+  RoomAgentDispatch,
+} from '@livekit/protocol';
 
 type ConnectionDetails = {
   serverUrl: string;
@@ -9,13 +16,11 @@ type ConnectionDetails = {
   participantToken: string;
 };
 
-// NOTE: you are expected to define the following environment variables in `.env.local`:
 const API_KEY = process.env.LIVEKIT_API_KEY;
 const API_SECRET = process.env.LIVEKIT_API_SECRET;
 const LIVEKIT_URL = process.env.LIVEKIT_URL;
-const AGENT_NAME = process.env.AGENT_NAME;
+const AGENT_NAME = process.env.AGENT_NAME ?? 'my-agent';
 
-// don't cache the results
 export const revalidate = 0;
 
 export async function POST(req: Request) {
@@ -23,54 +28,64 @@ export async function POST(req: Request) {
     if (LIVEKIT_URL === undefined) {
       throw new Error('LIVEKIT_URL is not defined');
     }
+
     if (API_KEY === undefined) {
       throw new Error('LIVEKIT_API_KEY is not defined');
     }
+
     if (API_SECRET === undefined) {
       throw new Error('LIVEKIT_API_SECRET is not defined');
     }
 
-    // Parse room config from request body (if provided).
-    const body = await req.json().catch(() => ({}));
+    // Always dispatch the configured agent.
     let roomConfig: RoomConfiguration | undefined;
-    if (body?.room_config) {
-      roomConfig = RoomConfiguration.fromJson(body.room_config, { ignoreUnknownFields: true });
-    } else if (AGENT_NAME) {
-      // When AGENT_NAME is set, configure explicit agent dispatch so the named
-      // agent worker picks up the job when a user joins the room.
-      roomConfig = RoomConfiguration.fromJson(
-        { agents: [{ agentName: AGENT_NAME }] },
-        { ignoreUnknownFields: true }
-      );
-    }
-      
-    // Generate participant token
-    const participantName = 'user';
-    const participantIdentity = `voice_assistant_user_${Math.floor(Math.random() * 10_000)}`;
-    const roomName = `voice_assistant_room_${Math.floor(Math.random() * 10_000)}`;
+
+if (AGENT_NAME) {
+  roomConfig = new RoomConfiguration({
+    agents: [
+      new RoomAgentDispatch({
+        agentName: AGENT_NAME,
+      }),
+    ],
+  });
+}
+    console.log('AGENT DISPATCH:', AGENT_NAME);
+    // Generate participant details.
+    const participantName = 'Shailendra';
+    const participantIdentity = 'shailendra';
+
+    const roomName = `voice_assistant_room_${Math.floor(
+      Math.random() * 10_000
+    )}`;
 
     const participantToken = await createParticipantToken(
-      { identity: participantIdentity, name: participantName },
+      {
+        identity: participantIdentity,
+        name: participantName,
+      },
       roomName,
       roomConfig
     );
 
-    // Return connection details
     const data: ConnectionDetails = {
       serverUrl: LIVEKIT_URL,
       roomName,
       participantName,
       participantToken,
     };
+
     const headers = new Headers({
       'Cache-Control': 'no-store',
     });
+
     return NextResponse.json(data, { headers });
   } catch (error) {
     if (error instanceof Error) {
       console.error(error);
       return new NextResponse(error.message, { status: 500 });
     }
+
+    return new NextResponse('Unknown error', { status: 500 });
   }
 }
 
@@ -83,6 +98,7 @@ function createParticipantToken(
     ...userInfo,
     ttl: '15m',
   });
+
   const grant: VideoGrant = {
     room: roomName,
     roomJoin: true,
@@ -90,6 +106,7 @@ function createParticipantToken(
     canPublishData: true,
     canSubscribe: true,
   };
+
   at.addGrant(grant);
 
   if (roomConfig) {

@@ -8,11 +8,16 @@ from livekit.agents import (
     AgentSession,
     JobContext,
     JobProcess,
+    RunContext,
     cli,
+    function_tool,
     inference,
     tokenize,
     room_io,
 )
+from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
+import memory
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
@@ -79,7 +84,28 @@ Never claim:
 - You completed a bank transaction.
 
 If a user requests account-specific actions, politely refuse.
+MEMORY & PERSONALIZATION
 
+You have access to caller memory tools.
+
+At the beginning of a conversation:
+1. Use the lookup_caller tool to check whether the caller is already known.
+2. Use the caller ID provided by the system as the user_id.
+3. If a caller is found, greet them by their saved name and naturally use relevant saved information.
+4. If no caller is found, treat them as a new caller.
+
+Before saving ANY personal information:
+1. Ask the caller for permission.
+2. Clearly explain that you would like to remember this information for future conversations.
+3. Only call save_caller if the caller explicitly agrees.
+4. If the caller says no, do not save anything.
+
+For Financial Services:
+- Never save OTP, PIN, CVV, passwords, bank account numbers, card numbers, or government ID numbers.
+- Only save useful non-sensitive information such as schemes discussed, general eligibility answers, language preference, and name.
+- Never claim that information was saved unless the save_caller tool confirms success.
+
+When saving information, keep it minimal and relevant to helping the caller in future conversations.
 ESCALATION
 If the user needs account access, transaction support, fraud reporting, or loan approval, say:
 
@@ -89,28 +115,177 @@ Always prioritize user safety and privacy.
 """
 
 
+@function_tool
+async def lookup_caller(
+    self,
+    context: RunContext,
+    user_id: str,
+):
+    """Look up a returning FinSaathi caller using their user ID."""
+
+    logger.info(f"Looking up caller: {user_id}")
+
+    caller = memory.get_caller(user_id)
+
+    if caller is None:
+        return {
+            "found": False,
+            "message": "No previous caller record was found.",
+        }
+
+    return {
+        "found": True,
+        "caller": caller,
+    }
+
+
+@function_tool
+async def save_caller(
+    self,
+    context: RunContext,
+    user_id: str,
+    name: str,
+    language_preference: str = "",
+    schemes_checked: str = "",
+    eligibility_answers: str = "",
+):
+    """Save caller information after the caller has given permission."""
+
+    logger.info(f"Saving caller information for: {user_id}")
+
+    from memory import save_caller as save_caller_to_db
+
+    save_caller_to_db(
+        user_id=user_id,
+        name=name,
+        language_preference=language_preference,
+        schemes_checked=schemes_checked,
+        eligibility_answers=eligibility_answers,
+    )
+
+    return {
+        "success": True,
+        "message": "Caller information has been saved successfully.",
+    }
 class Assistant(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions=SYSTEM_PROMPT)
+    def __init__(self, caller_id: str) -> None:
+        self.caller_id = caller_id
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+        super().__init__(
+            instructions=SYSTEM_PROMPT
+            + """
 
+MEMORY BEHAVIOR
 
+You have persistent memory about callers.
+
+At the beginning of every conversation:
+- Use the lookup_caller tool with the caller ID available to you.
+- If a caller record exists, greet the caller by their saved name.
+- Use their saved information naturally when relevant.
+- If no record exists, treat them as a new caller.
+
+WHEN YOU LEARN NEW INFORMATION:
+
+If the caller tells you their name or any useful personal information such as:
+- preferred language
+- government schemes they have checked
+- financial topics they are interested in
+- eligibility answers
+
+DO NOT immediately save it.
+
+First ask:
+
+"Would you like me to remember this information for future conversations?"
+
+Only after the caller clearly says YES:
+- call save_caller
+- save the information you learned.
+
+If the caller says NO:
+- do not call save_caller
+- continue the conversation normally.
+
+IMPORTANT:
+Never save information without explicit permission.
+
+Never save:
+- OTP
+- PIN
+- CVV
+- passwords
+- bank account numbers
+- UPI PIN
+- other banking credentials
+
+Example:
+
+User: "My name is Shailendra and I prefer Hindi."
+
+You: "Thanks, Shailendra. Would you like me to remember that you prefer Hindi for future conversations?"
+
+User: "Yes."
+
+You: Call save_caller.
+
+User: "No."
+
+You: Do not call save_caller.
+"""
+        )
+
+    @function_tool
+    async def lookup_caller(
+        self,
+        context: RunContext,
+        user_id: str,
+    ):
+        """Look up a returning caller using their user ID."""
+
+        logger.info(f"Looking up caller: {user_id}")
+
+        caller = get_caller(user_id)
+
+        if caller is None:
+            return {
+                "found": False,
+                "message": "No previous caller record was found.",
+            }
+
+        return {
+            "found": True,
+            "caller": caller,
+        }
+
+    @function_tool
+    async def save_caller(
+        self,
+        context: RunContext,
+        user_id: str,
+        name: str,
+        language_preference: str = "",
+        schemes_checked: str = "",
+        eligibility_answers: str = "",
+    ):
+        """Save caller information only after the caller explicitly gives permission."""
+
+        logger.info(f"Saving caller information for: {user_id}")
+
+        from src.memory import save_caller as save_caller_to_db
+
+        save_caller_to_db(
+            user_id=user_id,
+            name=name,
+            language_preference=language_preference,
+            schemes_checked=schemes_checked,
+            eligibility_answers=eligibility_answers,
+        )
+
+        return {
+            "success": True,
+            "message": "Caller information has been saved successfully.",
+        }
 server = AgentServer()
 
 
@@ -123,63 +298,45 @@ server.setup_fnc = prewarm
 
 @server.rtc_session(agent_name="my-agent")
 async def my_agent(ctx: JobContext):
-    # Logging setup
-    # Add any other context you want in all log entries here
+    session = AgentSession
+
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
+    await ctx.connect()
+    participants = list(ctx.room.remote_participants.values())
 
-    # Set up a voice AI pipeline using Murf Falcon, Gemini, Deepgram, and the LiveKit turn detector
+    if not participants:
+        logger.error("No caller found in the room")
+        return
+
+    caller_id = participants[0].identity
+
+    logger.info(f"Caller ID: {caller_id}")
     session = AgentSession(
-        # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
-        # See all available models at https://docs.livekit.io/agents/models/stt/
         stt=deepgram.STT(
-                model="nova-3",
-                language="multi",
-),
- # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
-        # See all available models at https://docs.livekit.io/agents/models/llm/
+            model="nova-3",
+            language="multi",
+        ),
+
         llm=google.LLM(
-                model="gemini-3.5-flash-lite",
-            ),
-        # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
-        # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
+            model="gemini-3.5-flash-lite",
+        ),
+
         tts=murf.TTS(
-                voice="Anisha", 
-                style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-                text_pacing=True
-            ),
-        # VAD and turn detection are used to determine when the user is speaking and when the agent should respond
-        # See more at https://docs.livekit.io/agents/build/turns
+            voice="Anisha",
+            style="Conversation",
+            tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+            text_pacing=True,
+        ),
+
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
-        # allow the LLM to generate a response while waiting for the end of turn
-        # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
         preemptive_generation=True,
     )
 
-    # To use a realtime model instead of a voice pipeline, use the following session setup instead.
-    # (Note: This is for the OpenAI Realtime API. For other providers, see https://docs.livekit.io/agents/models/realtime/))
-    # 1. Install livekit-agents[openai]
-    # 2. Set OPENAI_API_KEY in .env.local
-    # 3. Add `from livekit.plugins import openai` to the top of this file
-    # 4. Use the following session setup instead of the version above
-    # session = AgentSession(
-    #     llm=openai.realtime.RealtimeModel(voice="marin")
-    # )
-
-    # # Add a virtual avatar to the session, if desired
-    # # For other providers, see https://docs.livekit.io/agents/models/avatar/
-    # avatar = hedra.AvatarSession(
-    #   avatar_id="...",  # See https://docs.livekit.io/agents/models/avatar/plugins/hedra
-    # )
-    # # Start the avatar and wait for it to join
-    # await avatar.start(session, room=ctx.room)
-
-    # Start the session, which initializes the voice pipeline and warms up the models
     await session.start(
-        agent=Assistant(),
+        agent=Assistant(caller_id=caller_id),
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -193,8 +350,7 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    # Join the room and connect to the user
-    await ctx.connect()
+    
 
 
 if __name__ == "__main__":
