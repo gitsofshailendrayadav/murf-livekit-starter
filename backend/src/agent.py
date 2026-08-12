@@ -15,6 +15,8 @@ from livekit.agents import (
     tokenize,
     room_io,
 )
+from src.memory import get_caller
+from src.tools import check_scheme_eligibility
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 import memory
@@ -27,9 +29,21 @@ load_dotenv(".env.local")
 
 # Change this prompt to change what your voice agent does.
 # See README.md for example prompts (customer support, language tutor, receptionist).
-SYSTEM_PROMPT =  """
-IDENTITY
-You are FinSaathi, an AI Voice Financial Assistant built for India.
+SYSTEM_PROMPT = """ You have access to a financial scheme eligibility checker.
+
+When a caller asks whether they may be eligible for a government or financial scheme, and you have enough information such as their age, annual income, state, and student status, use the eligibility checker tool.
+
+Do not calculate or guess eligibility yourself when the tool can answer it.
+
+Before calling the tool, ask for any required information that is missing.
+
+After receiving the tool result:
+- Explain the result naturally in conversation.
+- Do not read the returned JSON or field names aloud.
+- Mention that this is a basic eligibility check based on the available dataset.
+- Mention the date of the data when relevant.
+- If the tool says the scheme is unavailable, clearly say you cannot verify it rather than guessing."""
+IDENTITY = """ You are FinSaathi, an AI Voice Financial Assistant built for India.
 You help users understand personal finance through natural voice conversations.
 Introduce yourself in the first response and briefly explain what you can help with.
 
@@ -168,72 +182,110 @@ async def save_caller(
         "message": "Caller information has been saved successfully.",
     }
 class Assistant(Agent):
+
     def __init__(self, caller_id: str) -> None:
         self.caller_id = caller_id
 
         super().__init__(
             instructions=SYSTEM_PROMPT
-            + """
-
-MEMORY BEHAVIOR
-
-You have persistent memory about callers.
-
-At the beginning of every conversation:
-- Use the lookup_caller tool with the caller ID available to you.
-- If a caller record exists, greet the caller by their saved name.
-- Use their saved information naturally when relevant.
-- If no record exists, treat them as a new caller.
-
-WHEN YOU LEARN NEW INFORMATION:
-
-If the caller tells you their name or any useful personal information such as:
-- preferred language
-- government schemes they have checked
-- financial topics they are interested in
-- eligibility answers
-
-DO NOT immediately save it.
-
-First ask:
-
-"Would you like me to remember this information for future conversations?"
-
-Only after the caller clearly says YES:
-- call save_caller
-- save the information you learned.
-
-If the caller says NO:
-- do not call save_caller
-- continue the conversation normally.
-
-IMPORTANT:
-Never save information without explicit permission.
-
-Never save:
-- OTP
-- PIN
-- CVV
-- passwords
-- bank account numbers
-- UPI PIN
-- other banking credentials
-
-Example:
-
-User: "My name is Shailendra and I prefer Hindi."
-
-You: "Thanks, Shailendra. Would you like me to remember that you prefer Hindi for future conversations?"
-
-User: "Yes."
-
-You: Call save_caller.
-
-User: "No."
-
-You: Do not call save_caller.
-"""
         )
+
+    @function_tool
+    async def check_financial_scheme_eligibility(
+        self,
+        context: RunContext,
+        scheme_name: str,
+        age: int,
+        annual_income: float,
+        state: str,
+        is_student: bool,
+    ) -> dict:
+        """Check basic eligibility for a financial or government scheme.
+
+        Use this tool when the caller asks whether they may be eligible
+        for a financial or government scheme and provides the required
+        eligibility information.
+
+        Do not guess eligibility if the requested scheme is not available
+        in the local dataset.
+        """
+
+        logger.info(
+            f"Checking eligibility: scheme={scheme_name}, "
+            f"age={age}, income={annual_income}, "
+            f"state={state}, student={is_student}"
+        )
+
+        result = check_scheme_eligibility(
+            scheme_name=scheme_name,
+            age=age,
+            annual_income=annual_income,
+            state=state,
+            is_student=is_student,
+        )
+
+        logger.info(f"Eligibility result: {result}")
+
+        return result
+# MEMORY BEHAVIOR
+
+# You have persistent memory about callers.
+
+# At the beginning of every conversation:
+# - Use the lookup_caller tool with the caller ID available to you.
+# - If a caller record exists, greet the caller by their saved name.
+# - Use their saved information naturally when relevant.
+# - If no record exists, treat them as a new caller.
+
+# WHEN YOU LEARN NEW INFORMATION:
+
+# If the caller tells you their name or any useful personal information such as:
+# - preferred language
+# - government schemes they have checked
+# - financial topics they are interested in
+# - eligibility answers
+
+# DO NOT immediately save it.
+
+# First ask:
+
+# "Would you like me to remember this information for future conversations?"
+
+# Only after the caller clearly says YES:
+# - call save_caller
+# - save the information you learned.
+
+# If the caller says NO:
+# - do not call save_caller
+# - continue the conversation normally.
+
+# IMPORTANT:
+# Never save information without explicit permission.
+
+# Never save:
+# - OTP
+# - PIN
+# - CVV
+# - passwords
+# - bank account numbers
+# - UPI PIN
+# - other banking credentials
+
+# Example:
+
+# User: "My name is Shailendra and I prefer Hindi."
+
+# You: "Thanks, Shailendra. Would you like me to remember that you prefer Hindi for future conversations?"
+
+# User: "Yes."
+
+# You: Call save_caller.
+
+# User: "No."
+
+# You: Do not call save_caller.
+# """
+#         )
 
     @function_tool
     async def lookup_caller(
