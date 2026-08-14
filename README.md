@@ -80,7 +80,7 @@ Create `.env.local` in both `backend/` and `frontend/` (copy from `.env.example`
 ```bash
 cd backend
 uv sync
-uv run python src/agent.py download-files
+uv run python -m src.agent download-files
 ```
 
 ### Step 4: Install frontend dependencies
@@ -110,7 +110,7 @@ chmod +x start_app.sh
 livekit-server --dev
 
 # Terminal 2 — Backend agent
-cd backend && uv run python src/agent.py dev
+cd backend && uv run python -m src.agent dev
 
 # Terminal 3 — Frontend
 cd frontend && pnpm dev

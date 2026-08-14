@@ -7,7 +7,7 @@ else
   echo "Warning: livekit-server not found. Skipping local LiveKit startup and using your configured LIVEKIT_URL instead."
 fi
 
-(cd backend && uv run python src/agent.py dev) &
+(cd backend && uv run python -m src.agent dev) &
 (cd frontend && pnpm dev) &
 
 # Wait for all background jobs

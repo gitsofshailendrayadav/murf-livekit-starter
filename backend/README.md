@@ -46,7 +46,7 @@ lk app env -w -d .env.local
 ### 3. Download models
 
 ```bash
-uv run python src/agent.py download-files
+uv run python -m src.agent download-files
 ```
 
 This downloads Silero VAD and the LiveKit turn detector models.
@@ -55,13 +55,13 @@ This downloads Silero VAD and the LiveKit turn detector models.
 
 ```bash
 # Development mode (auto-reload)
-uv run python src/agent.py dev
+uv run python -m src.agent dev
 
 # Or test directly in your terminal (no frontend needed)
-uv run python src/agent.py console
+uv run python -m src.agent console
 
 # Production
-uv run python src/agent.py start
+uv run python -m src.agent start
 ```
 
 ## Configuration

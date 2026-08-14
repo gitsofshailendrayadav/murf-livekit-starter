@@ -5,7 +5,7 @@ vars:
   INDENT: 4
   REL_PATH: "{{ relPath .USER_WORKING_DIR .ROOT_DIR }}"
   VENV_DIR: ".venv"
-  PYTHON_MAIN: '{{ joinPath "./src" "agent.py" }}'
+  PYTHON_MAIN: "python -m src.agent"
 
 tasks:
   post_create:
@@ -32,7 +32,7 @@ tasks:
       - |
         old='agent_name="my-agent"'
         new='agent_name="{{ .LIVEKIT_AGENT_NAME }}"'
-        file="{{ .PYTHON_MAIN }}"
+        file="./src/agent.py"
         tmp="$(mktemp)"
         while IFS= read -r line; do
           printf '%s\n' "${line//$old/$new}" >> "$tmp"
@@ -55,4 +55,4 @@ tasks:
   dev:
     interactive: true
     cmds:
-      - "uv run src/agent.py dev"
+      - "uv run python -m src.agent dev"

@@ -1,0 +1,8 @@
+{
+  "sip_trunk_id": "ST_hMjLD7yFGvRu",
+  "sip_call_to": "shailendraxyadav",
+  "room_name": "finsaathi-outbound",
+  "participant_identity": "linphone-user-001",
+  "participant_name": "FinSaathi",
+  "wait_until_answered": true
+}

@@ -38,9 +38,9 @@ This is the single entrypoint. It contains:
 ```bash
 cd backend
 uv sync
-uv run python src/agent.py download-files   # first time only
-uv run python src/agent.py dev              # development
-uv run python src/agent.py console          # terminal-only testing
+uv run python -m src.agent download-files   # first time only
+uv run python -m src.agent dev              # development
+uv run python -m src.agent console          # terminal-only testing
 ```
 
 ### Environment variables

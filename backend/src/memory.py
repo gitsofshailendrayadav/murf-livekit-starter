@@ -2,7 +2,6 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-
 # Database will be created inside the backend folder
 DB_PATH = Path(__file__).resolve().parent.parent / "finsaathi_memory.db"
 
