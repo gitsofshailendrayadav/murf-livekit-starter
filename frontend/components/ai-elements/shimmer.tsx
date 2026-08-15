@@ -42,7 +42,7 @@ const ShimmerComponent = ({
       transition={{
         repeat: Number.POSITIVE_INFINITY,
         duration,
-        ease: 'linear',
+        ease: 'linear' as const,
       }}
     >
       {children}

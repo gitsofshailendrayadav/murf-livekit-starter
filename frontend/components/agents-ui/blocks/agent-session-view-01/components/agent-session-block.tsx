@@ -31,7 +31,7 @@ const BOTTOM_VIEW_MOTION_PROPS: MotionProps = {
   transition: {
     duration: 0.3,
     delay: 0.5,
-    ease: 'easeOut',
+    ease: 'easeOut' as const,
   },
 };
 
