@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { BarChart3, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 function WelcomeImage() {
@@ -34,23 +36,34 @@ export const WelcomeView = ({
         <WelcomeImage />
 
         <div className="max-w-lg pt-1">
-  <h1 className="text-foreground text-2xl font-semibold tracking-tight">
-    Meet FinSaathi
-  </h1>
+          <h1 className="text-foreground text-2xl font-semibold tracking-tight">Meet FinSaathi</h1>
 
-  <p className="text-muted-foreground mt-2 text-sm leading-6">
-    Your AI financial assistant for simple, accessible and voice-first
-    financial guidance.
-  </p>
-</div>
+          <p className="text-muted-foreground mt-2 text-sm leading-6">
+            Your AI financial assistant for simple, accessible and voice-first financial guidance.
+          </p>
+        </div>
 
-        <Button
-          size="lg"
-          onClick={onStartCall}
-          className="mt-6 w-64 rounded-full font-mono text-xs font-bold tracking-wider uppercase"
-        >
-          {startButtonText}
-        </Button>
+        <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Button
+            size="lg"
+            onClick={onStartCall}
+            className="w-56 rounded-full font-mono text-xs font-bold tracking-wider uppercase shadow-md transition-transform hover:scale-105"
+          >
+            <Mic className="mr-2 size-3.5" />
+            {startButtonText}
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            asChild
+            className="border-border/80 hover:bg-muted w-56 rounded-full font-mono text-xs font-semibold tracking-wider uppercase transition-transform hover:scale-105"
+          >
+            <Link href="/analytics" className="flex items-center justify-center gap-2">
+              <BarChart3 className="text-primary size-3.5" />
+              <span>Call Analytics</span>
+            </Link>
+          </Button>
+        </div>
       </section>
 
       <div className="fixed bottom-5 left-0 flex w-full items-center justify-center">

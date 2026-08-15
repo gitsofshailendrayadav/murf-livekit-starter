@@ -5,22 +5,13 @@ from pathlib import Path
 
 import pytest
 
-try:
-    from escalation import (
-        create_escalation_record,
-        generate_reference_id,
-        get_all_escalations,
-        init_escalations_db,
-        sanitize_sensitive_info,
-    )
-except ImportError:
-    from src.escalation import (
-        create_escalation_record,
-        generate_reference_id,
-        get_all_escalations,
-        init_escalations_db,
-        sanitize_sensitive_info,
-    )
+from escalation import (
+    create_escalation_record,
+    generate_reference_id,
+    get_all_escalations,
+    init_escalations_db,
+    sanitize_sensitive_info,
+)
 
 
 @pytest.fixture

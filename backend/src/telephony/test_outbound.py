@@ -11,25 +11,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from livekit import api
 
-try:
-    from telephony.outbound import (
-        DEFAULT_LINPHONE_DESTINATION,
-        SIP_OUTBOUND_TRUNK_ENV,
-        create_outbound_sip_participant,
-    )
-except ImportError:
-    try:
-        from src.telephony.outbound import (
-            DEFAULT_LINPHONE_DESTINATION,
-            SIP_OUTBOUND_TRUNK_ENV,
-            create_outbound_sip_participant,
-        )
-    except ImportError:
-        from outbound import (
-            DEFAULT_LINPHONE_DESTINATION,
-            SIP_OUTBOUND_TRUNK_ENV,
-            create_outbound_sip_participant,
-        )
+from telephony.outbound import (
+    DEFAULT_LINPHONE_DESTINATION,
+    SIP_OUTBOUND_TRUNK_ENV,
+    create_outbound_sip_participant,
+)
 
 logger = logging.getLogger("agent.telephony.test")
 

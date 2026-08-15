@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
-import {
-  AccessToken,
-  type AccessTokenOptions,
-  type VideoGrant,
-} from 'livekit-server-sdk';
-import {
-  RoomConfiguration,
-  RoomAgentDispatch,
-} from '@livekit/protocol';
+import { AccessToken, type AccessTokenOptions, type VideoGrant } from 'livekit-server-sdk';
+import { RoomAgentDispatch, RoomConfiguration } from '@livekit/protocol';
 
 type ConnectionDetails = {
   serverUrl: string;
@@ -40,23 +33,21 @@ export async function POST(req: Request) {
     // Always dispatch the configured agent.
     let roomConfig: RoomConfiguration | undefined;
 
-if (AGENT_NAME) {
-  roomConfig = new RoomConfiguration({
-    agents: [
-      new RoomAgentDispatch({
-        agentName: AGENT_NAME,
-      }),
-    ],
-  });
-}
+    if (AGENT_NAME) {
+      roomConfig = new RoomConfiguration({
+        agents: [
+          new RoomAgentDispatch({
+            agentName: AGENT_NAME,
+          }),
+        ],
+      });
+    }
     console.log('AGENT DISPATCH:', AGENT_NAME);
     // Generate participant details.
     const participantName = 'Shailendra';
     const participantIdentity = 'shailendra';
 
-    const roomName = `voice_assistant_room_${Math.floor(
-      Math.random() * 10_000
-    )}`;
+    const roomName = `voice_assistant_room_${Math.floor(Math.random() * 10_000)}`;
 
     const participantToken = await createParticipantToken(
       {

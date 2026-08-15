@@ -192,3 +192,58 @@ async def test_unsafe_financial_decision_offers_escalation() -> None:
         )
 
         result.expect.no_more_events()
+
+
+@pytest.mark.asyncio
+async def test_general_budgeting_no_handoff() -> None:
+    """Day 9 Path 1: General budgeting query is handled directly by main agent without handoff."""
+    async with (
+        _llm() as llm,
+        AgentSession(llm=llm) as session,
+    ):
+        await session.start(Assistant())
+
+        result = await session.run(user_input="I want help creating a monthly budget.")
+
+        await (
+            result.expect.next_event()
+            .is_message(role="assistant")
+            .judge(
+                llm,
+                intent="""
+                Provides helpful guidance, practical tips, or explanation on creating a monthly budget.
+                Answers directly without attempting to transfer to a government scheme specialist.
+                """,
+            )
+        )
+
+        result.expect.no_more_events()
+
+
+@pytest.mark.asyncio
+async def test_government_scheme_specialist_handoff() -> None:
+    """Day 9 Path 2: Scheme eligibility query triggers handoff announcement and specialist transfer."""
+    async with (
+        _llm() as llm,
+        AgentSession(llm=llm) as session,
+    ):
+        await session.start(Assistant())
+
+        result = await session.run(user_input="Am I eligible for PM-KISAN?")
+
+        # Expect main agent to announce handoff and execute transfer tool
+        await (
+            result.expect.next_event()
+            .is_message(role="assistant")
+            .judge(
+                llm,
+                intent="""
+                Announces or explains that this government scheme question is being connected or transferred
+                to the Government Scheme Specialist, and mentions that the user will not need to repeat the question.
+                """,
+            )
+        )
+
+        result.expect.next_event().is_function_call(
+            name="transfer_to_government_scheme_specialist"
+        )

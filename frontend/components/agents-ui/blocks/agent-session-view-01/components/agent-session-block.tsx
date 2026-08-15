@@ -180,24 +180,24 @@ export function AgentSessionView_01({
   const [chatOpen, setChatOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { state: agentState } = useAgent();
-const statusText = (() => {
-  switch (agentState) {
-    case 'connecting':
-      return 'Connecting to FinSaathi...';
-    case 'initializing':
-  return 'Connecting to FinSaathi...';
-    case 'listening':
-      return 'FinSaathi is listening...';
-    case 'speaking':
-      return 'FinSaathi is speaking...';
-    case 'thinking':
-      return 'FinSaathi is thinking...';
-    case 'disconnected':
-      return 'Call ended';
-    default:
-      return 'FinSaathi is ready';
-  }
-})();
+  const statusText = (() => {
+    switch (agentState) {
+      case 'connecting':
+        return 'Connecting to FinSaathi...';
+      case 'initializing':
+        return 'Connecting to FinSaathi...';
+      case 'listening':
+        return 'FinSaathi is listening...';
+      case 'speaking':
+        return 'FinSaathi is speaking...';
+      case 'thinking':
+        return 'FinSaathi is thinking...';
+      case 'disconnected':
+        return 'Call ended';
+      default:
+        return 'FinSaathi is ready';
+    }
+  })();
   const controls: AgentControlBarControls = {
     leave: true,
     microphone: true,
@@ -240,11 +240,11 @@ const statusText = (() => {
           )}
         </AnimatePresence>
       </div>
-      <div className="absolute left-1/2 top-6 z-40 -translate-x-1/2">
-  <div className="rounded-full border border-white/10 bg-black/50 px-5 py-2 text-sm font-medium text-white backdrop-blur-md">
-    {statusText}
-  </div>
-</div>
+      <div className="absolute top-6 left-1/2 z-40 -translate-x-1/2">
+        <div className="rounded-full border border-white/10 bg-black/50 px-5 py-2 text-sm font-medium text-white backdrop-blur-md">
+          {statusText}
+        </div>
+      </div>
       {/* Tile layout */}
       <TileLayout
         chatOpen={chatOpen}
