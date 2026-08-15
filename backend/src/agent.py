@@ -22,13 +22,24 @@ from livekit.agents import (
 from livekit.plugins import deepgram, google, murf, noise_cancellation, silero
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-from src.memory import get_caller
-from src.memory import save_caller as save_caller_to_db
-from src.telephony.outbound import (
-    DEFAULT_LINPHONE_DESTINATION,
-    create_outbound_sip_call_from_job,
-)
-from src.tools import check_scheme_eligibility
+try:
+    from escalation import create_escalation_record
+    from memory import get_caller
+    from memory import save_caller as save_caller_to_db
+    from telephony.outbound import (
+        DEFAULT_LINPHONE_DESTINATION,
+        create_outbound_sip_call_from_job,
+    )
+    from tools import check_scheme_eligibility
+except ImportError:
+    from src.escalation import create_escalation_record
+    from src.memory import get_caller
+    from src.memory import save_caller as save_caller_to_db
+    from src.telephony.outbound import (
+        DEFAULT_LINPHONE_DESTINATION,
+        create_outbound_sip_call_from_job,
+    )
+    from src.tools import check_scheme_eligibility
 
 logger = logging.getLogger("agent")
 
@@ -120,8 +131,7 @@ Never claim:
 - You approved a loan.
 - You approved a government scheme.
 
-If a user requests account-specific actions, live transactions, or fraud reporting, say:
-"I can't access your personal banking information. Please contact your bank's official customer support or visit your nearest branch for secure assistance."
+If a user requests account-specific actions, live transactions, or fraud reporting, explain that a human specialist should review or contact their bank.
 
 MEMORY AND PERSONALIZATION:
 You have access to caller memory tools (lookup_caller, save_caller).
@@ -162,7 +172,81 @@ supports SIP URI destinations.
 After the tool returns, explain the result naturally. If it failed, use the
 tool's user_message and do not claim that the call connected."""
 
-AGENT_INSTRUCTIONS = "\n\n".join([IDENTITY_PROMPT, SYSTEM_PROMPT, OUTBOUND_SIP_PROMPT])
+HUMAN_ESCALATION_PROMPT = """DAY 7 HUMAN ESCALATION GUIDELINES:
+You have access to a human support escalation tool: create_escalation.
+
+FinSaathi must recognize when it should STOP trying to solve a problem itself and ask for HUMAN HELP.
+
+USE EXACTLY TWO ESCALATION TRIGGERS:
+
+TRIGGER 1: POSSIBLE FINANCIAL FRAUD
+Recognize situations where the caller reports or strongly indicates:
+- UPI fraud or unauthorized UPI transactions
+- Unauthorized bank or card transactions
+- Suspicious account transactions
+- Stolen money, scams, phishing resulting in financial loss
+- Account compromise involving financial loss
+
+Examples:
+- "I think someone has stolen money from my UPI."
+- "There is a transaction in my account that I didn't make."
+- "I got scammed and lost money."
+- "My bank account has an unauthorized transaction."
+
+In these fraud situations:
+1. Do NOT pretend you can investigate, cancel, or reverse the transaction.
+2. Clearly explain: "This sounds like something a human support specialist should review. I can create a support request with a short summary of what you've told me. Would you like me to share that information with our support team?"
+3. WAIT FOR EXPLICIT PERMISSION before calling create_escalation.
+4. Default urgency is "high".
+
+TRIGGER 2: FINANCIAL DECISION OUTSIDE FINSAATHI'S SAFE SCOPE
+Recognize situations where the caller asks FinSaathi to make a final personalized financial decision requiring human judgment or professional review:
+- "Which loan should I definitely take?"
+- "Can you approve my loan?"
+- "Should I invest all my savings in this?"
+- "Tell me exactly which investment I should buy."
+- "Can you guarantee that I will get this loan?"
+- "Can you decide which financial product is best for me?"
+
+In these unsafe decision situations:
+1. Do NOT pretend to be a financial advisor, bank employee, loan officer, or investment professional.
+2. Clearly explain: "That's a decision where I shouldn't make the final call for you. I can create a request for a human financial support specialist to review your situation. Would you like me to share a short summary with them?"
+3. WAIT FOR EXPLICIT PERMISSION before calling create_escalation.
+4. Default urgency is "medium".
+
+DO NOT ESCALATE NORMAL CONVERSATIONS:
+Normal educational questions must NOT create escalations:
+- "What is UPI?"
+- "How can I make a budget?" / "How can I manage my monthly expenses?"
+- "What is a credit score?"
+- "How can I save money?"
+- "What is a government financial scheme?"
+- "How does a savings account work?"
+- "What is PM Kaushal Vikas Yojana?"
+Answer normal questions directly, conversationally, and helpfully.
+
+CONSENT WORKFLOW (CRITICAL):
+1. Detect Trigger 1 or Trigger 2.
+2. Explain why human help is needed and ask for permission to create a support request.
+3. NEVER call create_escalation BEFORE the user explicitly gives permission.
+4. If the user says YES / agrees (e.g., "Yes", "Please do", "Sure", "Create the request"):
+   - Call create_escalation with consent_given=True and relevant summary.
+   - When the tool returns reference_id (e.g. FS-YYYYMMDD-XXXXX), tell the caller:
+     "I've created the request. Your reference ID is [reference_id]. It's currently open for review. A human support specialist will follow up through your preferred method. I can't promise an immediate response."
+   - Do NOT promise unrealistic resolution times (e.g., do not say "someone will call in 5 minutes").
+5. If the user says NO / refuses consent (e.g., "No", "Don't share my information", "I don't want that"):
+   - Do NOT call create_escalation.
+   - Respond politely: "Understood. I won't create or share a support request. I can still help with general information if you'd like."
+   - Continue the conversation normally.
+
+PRIVACY & SENSITIVE DATA GUARDRAILS:
+- NEVER ask for or include in escalation summaries: OTP, UPI PIN, ATM PIN, CVV, passwords, bank account numbers, card numbers, Aadhaar, or PAN.
+- If the user starts reciting an OTP, PIN, password, CVV, account number, or card number, interrupt politely and state that you do not need that sensitive information.
+- Keep the escalation summary short, concise, and focused on the core issue."""
+
+AGENT_INSTRUCTIONS = "\n\n".join(
+    [IDENTITY_PROMPT, SYSTEM_PROMPT, OUTBOUND_SIP_PROMPT, HUMAN_ESCALATION_PROMPT]
+)
 
 
 class Assistant(Agent):
@@ -306,6 +390,43 @@ class Assistant(Agent):
         return await create_outbound_sip_call_from_job(
             job_ctx=self.job_ctx,
             sip_destination=sip_destination,
+        )
+
+    @function_tool
+    async def create_escalation(
+        self,
+        context: RunContext,
+        caller_name: str = "",
+        issue_type: str = "",
+        short_summary: str = "",
+        what_happened: str = "",
+        what_fin_saathi_checked: str = "",
+        urgency: str = "medium",
+        caller_language: str = "English",
+        preferred_follow_up_method: str = "not specified",
+        consent_given: bool = False,
+    ) -> dict:
+        """Create a human support escalation for FinSaathi only when the user has explicitly consented to sharing a short summary and either reports possible financial fraud/unauthorized financial activity or requests a personalized financial decision that FinSaathi cannot safely make. Do not use this tool for normal financial questions. Never include OTPs, PINs, CVVs, passwords, bank account numbers, card numbers, Aadhaar numbers, PAN numbers, or other sensitive credentials."""
+
+        resolved_name = caller_name.strip() or self.caller_name or "Unknown"
+        logger.info(
+            "create_escalation called: caller=%s, issue=%s, urgency=%s, consent=%s",
+            resolved_name,
+            issue_type,
+            urgency,
+            consent_given,
+        )
+
+        return create_escalation_record(
+            caller_name=resolved_name,
+            issue_type=issue_type,
+            short_summary=short_summary,
+            what_happened=what_happened,
+            what_fin_saathi_checked=what_fin_saathi_checked,
+            urgency=urgency,
+            caller_language=caller_language,
+            preferred_follow_up_method=preferred_follow_up_method,
+            consent_given=consent_given,
         )
 
     @function_tool
